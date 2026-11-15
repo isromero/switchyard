@@ -1,0 +1,14 @@
+{
+  "total_count": 3,
+  "jobs": [
+    {"id": 1001, "run_id": 101, "run_attempt": 1, "status": "completed", "conclusion": "success", "name": "pick",
+     "labels": ["self-hosted", "my-pi"], "runner_name": "pi-1", "runner_group_name": "Default",
+     "started_at": "2026-11-10T09:00:05Z", "completed_at": "2026-11-10T09:00:25Z"},
+    {"id": 1002, "run_id": 101, "run_attempt": 1, "status": "completed", "conclusion": "success", "name": "build",
+     "labels": ["jog-4vcpu"], "runner_name": "jog-abc123", "runner_group_name": null,
+     "started_at": "2026-11-10T09:01:00Z", "completed_at": "2026-11-10T09:11:30Z"},
+    {"id": 1003, "run_id": 101, "run_attempt": 1, "status": "completed", "conclusion": "skipped", "name": "deploy",
+     "labels": ["jog"], "runner_name": null, "runner_group_name": null,
+     "started_at": "2026-11-10T09:11:30Z", "completed_at": "2026-11-10T09:11:30Z"}
+  ]
+}

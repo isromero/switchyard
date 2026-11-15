@@ -1,0 +1,162 @@
+# switchyard config. Providers are tried in this order (order = priority).
+#
+# Pass 1: self-hosted runners that are online and idle, then hosted
+#         providers that still have free minutes (minus the margin).
+# Pass 2: hosted providers with allow_paid: true, within their caps
+#         (in paid_order if set, otherwise this order).
+# Otherwise: the fallback label.
+#
+# Minutes are "weighted": minutes x the runner's multiplier. Multiplier 1
+# is the provider's 2 vCPU Linux x64 runner; free_minutes, cap_minutes and
+# price_per_minute are all in those units.
+#
+# Free minutes and prices change: check each provider's page (linked below)
+# and set them to what applies to your account.
+
+fallback: ubuntu-latest
+margin_minutes: 60
+# When every provider is used up: "fallback" uses the fallback label anyway
+# (for ubuntu-latest that means GitHub bills the run, up to your GitHub
+# budget); "fail" stops the workflow instead. Errors always use the fallback.
+on_exhausted: fallback
+# A hosted provider that leaves a job waiting this long without a runner
+# (app not set up, out of credit, outage) is skipped until it runs a job
+# again, or for an hour after that job ended. 0 turns this off.
+stuck_after: 10m
+
+usage:
+  # Users/orgs whose repositories are scanned. Defaults to the owner of the
+  # repository running the workflow.
+  # accounts: [your-user, your-org]
+  cache_ttl: 10m
+  timeout: 20s
+
+providers:
+  # --- self-hosted: free, used only when a matching runner is online and idle
+  # Use whatever custom labels you gave your runners.
+  - name: pi
+    kind: self-hosted
+    runners:
+      - { label: my-pi, size: small, arch: arm64 }
+
+  - name: arm-vm
+    kind: self-hosted
+    runners:
+      - { label: my-arm-vm, size: small, arch: arm64 }
+      - { label: my-arm-vm, size: medium, arch: arm64 }
+
+  # --- free tiers
+  # https://usejog.com/docs/runners
+  # The free minutes only apply while the account has prepaid credit.
+  # Set enabled: false (or SWITCHYARD_DISABLE=jog) if the credit runs out.
+  - name: jog
+    free_minutes: 5000
+    price_per_minute: 0.0012
+    runners:
+      - { label: jog,       size: small,  multiplier: 1 }
+      - { label: jog-4vcpu, size: medium, multiplier: 2 }
+      - { label: jog-8vcpu, size: large,  multiplier: 4 }
+    count:
+      - { pattern: "jog-16vcpu", multiplier: 8 }
+      - { pattern: "jog-32vcpu", multiplier: 16 }
+      - { pattern: "jog-2vcpu",  multiplier: 1 }
+
+  # https://docs.blacksmith.sh/blacksmith-runners/overview
+  # Only for GitHub organizations; personal accounts can't install it.
+  - name: blacksmith
+    free_minutes: 3000
+    price_per_minute: 0.004
+    runners:
+      - { label: blacksmith-2vcpu-ubuntu-2404,     size: small,  multiplier: 1 }
+      - { label: blacksmith-4vcpu-ubuntu-2404,     size: medium, multiplier: 2 }
+      - { label: blacksmith-8vcpu-ubuntu-2404,     size: large,  multiplier: 4 }
+      - { label: blacksmith-2vcpu-ubuntu-2404-arm, size: small,  arch: arm64, multiplier: 0.625 }
+      - { label: blacksmith-4vcpu-ubuntu-2404-arm, size: medium, arch: arm64, multiplier: 1.25 }
+    count:
+      - { pattern: "blacksmith-*", multiplier: 1 }
+
+  # --- paid / small free tiers: off until you set them up
+  # https://www.ubicloud.com/docs/github-actions-integration/runner-types
+  # The free allowance is a monthly credit; needs a credit card on file.
+  - name: ubicloud
+    enabled: false
+    free_minutes: 1250
+    price_per_minute: 0.00125
+    runners:
+      - { label: ubicloud-standard-2,     size: small,  multiplier: 1 }
+      - { label: ubicloud-standard-4,     size: medium, multiplier: 2 }
+      - { label: ubicloud-standard-8,     size: large,  multiplier: 4 }
+      - { label: ubicloud-standard-2-arm, size: small,  arch: arm64, multiplier: 1 }
+
+  # https://depot.dev/docs/github-actions/runner-types
+  - name: depot
+    enabled: false
+    price_per_minute: 0.006
+    allow_paid: true
+    cap_usd: 5
+    runners:
+      - { label: depot-ubuntu-24.04,       size: small,  multiplier: 1 }
+      - { label: depot-ubuntu-24.04-4,     size: medium, multiplier: 2 }
+      - { label: depot-ubuntu-24.04-8,     size: large,  multiplier: 4 }
+      - { label: depot-ubuntu-24.04-arm,   size: small,  arch: arm64, multiplier: 1 }
+
+  # https://namespace.so/docs/reference/github-actions/runner-configuration
+  # A label without a shape means 4x16, so always give the shape.
+  - name: namespace
+    enabled: false
+    price_per_minute: 0.002
+    allow_paid: true
+    cap_usd: 5
+    runners:
+      - { label: nscloud-ubuntu-24.04-amd64-2x4,  size: small,  multiplier: 1 }
+      - { label: nscloud-ubuntu-24.04-amd64-4x8,  size: medium, multiplier: 2 }
+      - { label: nscloud-ubuntu-24.04-amd64-8x16, size: large,  multiplier: 4 }
+      - { label: nscloud-ubuntu-24.04-arm64-2x4,  size: small,  arch: arm64, multiplier: 1 }
+
+  # https://www.warpbuild.com/docs/ci/cloud-runners
+  - name: warpbuild
+    enabled: false
+    price_per_minute: 0.004
+    allow_paid: true
+    cap_usd: 5
+    runners:
+      - { label: warp-ubuntu-latest-x64-2x,   size: small,  multiplier: 1 }
+      - { label: warp-ubuntu-latest-x64-4x,   size: medium, multiplier: 2 }
+      - { label: warp-ubuntu-latest-x64-8x,   size: large,  multiplier: 4 }
+      - { label: warp-ubuntu-latest-arm64-2x, size: small,  arch: arm64, multiplier: 0.75 }
+
+  # https://runs-on.com/runners/linux/ (runs in your own AWS account)
+  # {{run_id}} is replaced with $GITHUB_RUN_ID, as RunsOn requires.
+  - name: runs-on
+    enabled: false
+    price_per_minute: 0.0009
+    allow_paid: true
+    cap_usd: 5
+    runners:
+      - { label: "runs-on={{run_id}}/runner=2cpu-linux-x64",   size: small,  multiplier: 1 }
+      - { label: "runs-on={{run_id}}/runner=4cpu-linux-x64",   size: medium, multiplier: 2 }
+      - { label: "runs-on={{run_id}}/runner=8cpu-linux-x64",   size: large,  multiplier: 4 }
+      - { label: "runs-on={{run_id}}/runner=2cpu-linux-arm64", size: small,  arch: arm64, multiplier: 1 }
+
+  # --- GitHub-hosted
+  # Free minutes for private repos depend on your plan; set free_minutes
+  # to your plan's amount. Public repos are free and not counted.
+  # https://docs.github.com/en/billing/reference/actions-runner-pricing
+  # To let switchyard spend money here, set allow_paid: true; cap_usd then
+  # limits it. GitHub's own budget setting still applies on top.
+  # billing_api: count from GitHub's billing report instead of the estimate
+  # (the token then needs Plan: read, or Administration: read for an org).
+  - name: github
+    free_minutes: 2000
+    price_per_minute: 0.006
+    allow_paid: false
+    cap_usd: 5
+    ignore_public_repos: true
+    billing_api: true
+    runners:
+      - { label: ubuntu-latest,    size: small, multiplier: 1 }
+      - { label: ubuntu-24.04-arm, size: small, arch: arm64, multiplier: 0.83 }
+    count:
+      - { pattern: "ubuntu-*",  multiplier: 1 }
+      - { pattern: "windows-*", multiplier: 1.67 }
+      - { pattern: "macos-*",   multiplier: 10.3 }

@@ -1,0 +1,144 @@
+name: switchyard
+description: Pick a runner for each run - your idle machines first, then cloud providers, free minutes before paid.
+
+inputs:
+  token:
+    description: >
+      Token for the GitHub API (usage counting and self-hosted runner status).
+      See the README for the permissions it needs.
+    required: true
+  runners-token:
+    description: >
+      Token used only to list self-hosted runners (needs Administration: read).
+      Defaults to `token`. Lets `token` itself stay read-only.
+    required: false
+    default: ""
+  download-token:
+    description: Token used to download the switchyard release binary. Defaults to `token`.
+    required: false
+    default: ""
+  config:
+    description: >
+      Path to the config file. Default: .github/switchyard.yml in the workspace
+      if it exists, otherwise the switchyard.yml shipped with this action.
+    required: false
+    default: ""
+  size:
+    description: small, medium or large.
+    required: false
+    default: small
+  arch:
+    description: x64, arm64 or any.
+    required: false
+    default: any
+  fallback:
+    description: >
+      Label to use when nothing fits or anything fails. Default: the config's
+      fallback (ubuntu-latest if the config can't be read).
+    required: false
+    default: ""
+  jobs:
+    description: >
+      Jobs that each get their own runner, e.g. "check, test:medium*5"
+      (name[:size][*count]; a count makes name-1 ... name-n for a matrix).
+      Read each label from the runners output. Idle self-hosted runners go to
+      the first jobs listed, one job each; the rest go to hosted providers.
+    required: false
+    default: ""
+  disable:
+    description: Comma-separated provider names to skip for this run.
+    required: false
+    default: ""
+  version:
+    description: >
+      Release to use (v1.2.3, v1, or latest). Default: derived from the ref
+      the action is used at (@v1 -> newest v1.x.y; @v1.2.3 or a commit SHA
+      with a vX.Y.Z tag -> that release; a branch -> latest).
+    required: false
+    default: ""
+  actions-cache:
+    description: >
+      Keep the usage cache in actions/cache. Only useful when the pick job runs
+      on ephemeral runners; on a self-hosted runner the local cache is better.
+      Ignored in public repositories: the cache lists private repositories and
+      their usage, and fork pull requests can read a public repository's caches.
+    required: false
+    default: "false"
+
+outputs:
+  runner:
+    description: The runs-on label for the requested size.
+    value: ${{ steps.pick.outputs.runner }}
+  provider:
+    description: The provider name, empty when the fallback was used.
+    value: ${{ steps.pick.outputs.provider }}
+  paid:
+    description: "true if the pick costs money."
+    value: ${{ steps.pick.outputs.paid }}
+  fallback:
+    description: "true if the fallback label was used."
+    value: ${{ steps.pick.outputs.fallback }}
+  runner_small:
+    description: Label for a small job.
+    value: ${{ steps.pick.outputs.runner_small }}
+  runner_medium:
+    description: Label for a medium job.
+    value: ${{ steps.pick.outputs.runner_medium }}
+  runner_large:
+    description: Label for a large job.
+    value: ${{ steps.pick.outputs.runner_large }}
+  runners:
+    description: >
+      JSON object with a label per job of the jobs input, e.g.
+      fromJSON(needs.pick.outputs.runners)['test-1']. Empty for a job with no
+      runner (on_exhausted: fail, or a fork and a self-hosted fallback).
+    value: ${{ steps.pick.outputs.runners }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare usage cache key
+      id: cachekey
+      if: inputs.actions-cache == 'true' && github.event.repository.private == true
+      shell: bash
+      run: |
+        echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+        echo "file=${RUNNER_TEMP}/switchyard-usage.json" >> "$GITHUB_OUTPUT"
+
+    - name: Restore usage cache
+      if: inputs.actions-cache == 'true' && github.event.repository.private == true
+      uses: actions/cache/restore@v4
+      continue-on-error: true
+      with:
+        path: ${{ steps.cachekey.outputs.file }}
+        key: switchyard-usage-${{ steps.cachekey.outputs.month }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: switchyard-usage-${{ steps.cachekey.outputs.month }}-
+
+    - name: Pick runner
+      id: pick
+      shell: bash
+      env:
+        INPUT_TOKEN: ${{ inputs.token }}
+        INPUT_RUNNERS_TOKEN: ${{ inputs.runners-token }}
+        INPUT_DOWNLOAD_TOKEN: ${{ inputs.download-token }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_SIZE: ${{ inputs.size }}
+        INPUT_ARCH: ${{ inputs.arch }}
+        INPUT_FALLBACK: ${{ inputs.fallback }}
+        INPUT_DISABLE: ${{ inputs.disable }}
+        INPUT_JOBS: ${{ inputs.jobs }}
+        INPUT_VERSION: ${{ inputs.version }}
+        ACTION_REPO: ${{ github.action_repository }}
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_PATH: ${{ github.action_path }}
+        CACHE_FILE: ${{ steps.cachekey.outputs.file }}
+      run: |
+        "$ACTION_PATH/scripts/pick.sh"
+
+    - name: Save usage cache
+      if: always() && inputs.actions-cache == 'true' && github.event.repository.private == true
+      uses: actions/cache/save@v4
+      continue-on-error: true
+      with:
+        path: ${{ steps.cachekey.outputs.file }}
+        key: switchyard-usage-${{ steps.cachekey.outputs.month }}-${{ github.run_id }}-${{ github.run_attempt }}

@@ -1,0 +1,9 @@
+{
+  "total_count": 2,
+  "jobs": [
+    {"id": 4001, "run_id": 201, "run_attempt": 1, "status": "completed", "conclusion": "success", "name": "build",
+     "labels": ["ubuntu-latest"], "runner_name": "GitHub Actions 9", "started_at": "2026-11-05T10:00:10Z", "completed_at": "2026-11-05T10:04:10Z"},
+    {"id": 4002, "run_id": 201, "run_attempt": 1, "status": "completed", "conclusion": "success", "name": "e2e",
+     "labels": ["jog"], "runner_name": "jog-def", "started_at": "2026-11-05T10:01:00Z", "completed_at": "2026-11-05T10:03:00Z"}
+  ]
+}
