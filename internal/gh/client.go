@@ -74,6 +74,7 @@ type Run struct {
 	RunAttempt int       `json:"run_attempt"`
 	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // Job is a workflow job.
