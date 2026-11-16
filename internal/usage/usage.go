@@ -205,7 +205,7 @@ func Refresh(ctx context.Context, api API, cfg *config.Config, c *Cache, now tim
 		errs    []error
 		wg      sync.WaitGroup
 		repoSem = make(chan struct{}, 12)
-		jobSem  = make(chan struct{}, 16)
+		jobSem  = make(chan struct{}, 32) // GitHub asks for at most 100 concurrent requests
 	)
 	for _, r := range repos {
 		wg.Add(1)
@@ -298,8 +298,14 @@ func refreshRepo(ctx context.Context, api API, r gh.Repo, old *RepoState, from, 
 	}
 	results := make(chan result)
 	pending := 0
+	monthStart := MonthStart(now)
 	for _, run := range runs {
 		if _, dup := st.Runs[run.ID]; dup {
+			continue
+		}
+		// Listed only in case it was re-run this month. Untouched since last
+		// month, it has no job this month: skip fetching its jobs.
+		if run.CreatedAt.Before(monthStart) && !run.UpdatedAt.IsZero() && run.UpdatedAt.Before(monthStart) {
 			continue
 		}
 		if old != nil {
