@@ -31,6 +31,7 @@ jobs:
         uses: isromero/switchyard@v1
         with:
           token: ${{ secrets.SWITCHYARD_TOKEN }}
+          actions-cache: true   # keep counted minutes between runs
 
   test:
     needs: pick
@@ -66,12 +67,33 @@ token permissions it needs.
 
 ## Token
 
-The built-in `GITHUB_TOKEN` only sees the current repository, so create a
-fine-grained token and save it as the `SWITCHYARD_TOKEN` secret:
+The built-in `GITHUB_TOKEN` only sees the current repository, so switchyard
+needs a fine-grained token that can read Actions in every repository sharing
+the same minutes:
 
-- **Actions: read** on the repositories whose minutes should count.
-- **Administration: read** on the repositories that use self-hosted runners,
-  to see which are idle. You can put this in a separate `runners-token`.
+1. Open [Settings → Developer settings → Fine-grained tokens → Generate new
+   token](https://github.com/settings/personal-access-tokens/new) (from your
+   user settings, also for an organization).
+2. **Resource owner**: the account that pays for the minutes, your user or the
+   organization. One token per account.
+3. **Repository access**: all repositories, so every repository's minutes are
+   counted.
+4. **Permissions**, all read-only, everything else left at *No access*:
+
+   | Permission | Needed for |
+   |---|---|
+   | Repository → **Actions** | Always: counting minutes and spotting queued jobs. |
+   | Repository → **Administration** | Self-hosted providers: seeing which runners are idle. |
+   | Account → **Plan** (user) or Organization → **Administration** | `billing_api`: minutes from GitHub's billing report. |
+
+5. Save it as the `SWITCHYARD_TOKEN` secret in each repository that runs
+   switchyard: `gh secret set SWITCHYARD_TOKEN -R owner/repo`.
+
+If the organization requires approval for fine-grained tokens, approve it in
+the organization's settings under Personal access tokens. `switchyard check`
+lists the permissions your config needs, and when the token expires
+switchyard falls back instead of failing. [docs/reference.md](docs/reference.md#token-and-permissions)
+covers a separate admin token for runners and classic tokens.
 
 ## One runner per job
 
@@ -102,6 +124,7 @@ cloud.
 | `size` | `small` (default), `medium` or `large`. |
 | `arch` | `x64`, `arm64` or `any` (default). |
 | `jobs` | Jobs that each get a runner, e.g. `lint, test:medium*3`. |
+| `actions-cache` | `true` keeps counted minutes in actions/cache, for a pick job on GitHub-hosted runners. Default: `false`. |
 | `disable` | Providers to skip this time, e.g. `blacksmith`. |
 | `fallback` | Label used when nothing fits or on any error. Default: the config's `fallback`. |
 
